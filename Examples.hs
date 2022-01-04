@@ -58,12 +58,12 @@ run :: (Functor f, Functor g) => (r -> a Zero) -> IndexAlg f g a -> Prog f g r -
 run gen alg prog = foldHybrid alg (fmap gen prog)
 
 -----------------------------------------------------------------------------------------------------------
--- Endoalgebras
+-- * Functiorial algebras (paper Figure 1)
 
 data EndoAlg f g c = EndoAlg
-    { callE     :: forall x. f (c x) -> c x
+    { returnE   :: forall x. x -> c x
+    , callE     :: forall x. f (c x) -> c x
     , enterE    :: forall x. g (c (c x)) -> c x
-    , returnE   :: forall x. x -> c x
     }
 
 data BaseAlg f g c d = BaseAlg
@@ -82,13 +82,13 @@ hcata alg (Return x)   = returnE alg x
 hcata alg (Call op)    = (callE alg . fmap (hcata alg)) op
 hcata alg (Enter sc)   = (enterE alg . fmap (hcata alg . fmap (hcata alg))) sc
 
-foldEndo :: (Functor f, Functor g) => (EndoAlg f g c) -> (BaseAlg f g c b) -> (a -> b) -> Prog f g a -> b
-foldEndo alg ealg gen (Return x)   = gen x
-foldEndo alg ealg gen (Call op)    = (callB ealg . fmap (foldEndo alg ealg gen)) op
-foldEndo alg ealg gen (Enter sc)   = (enterB ealg . fmap (hcata alg ~. foldEndo alg ealg gen)) sc
+handle :: (Functor f, Functor g) => (EndoAlg f g c) -> (BaseAlg f g c b) -> (a -> b) -> Prog f g a -> b
+handle alg ealg gen (Return x)   = gen x
+handle alg ealg gen (Call op)    = (callB ealg . fmap (handle alg ealg gen)) op
+handle alg ealg gen (Enter sc)   = (enterB ealg . fmap (hcata alg ~. handle alg ealg gen)) sc
 
 -----------------------------------------------------------------------------------------------------------
--- * Example Nondeterminism
+-- * Example Nondeterminism with Once
 
 data Choice a = Fail | Or a a deriving Functor
 data Once a   = Once a deriving Functor
@@ -167,7 +167,7 @@ ealgEndo1 = BaseAlg {..} where
 
 -- [1, 2]
 exampleEndo1 :: [Int]
-exampleEndo1 = foldEndo algEndo1 ealgEndo1 genEndo1 prog1
+exampleEndo1 = handle algEndo1 ealgEndo1 genEndo1 prog1
 
 -----------------------------------------------------------------------------------------------------------
 -- * Example State with Local Variables
@@ -275,7 +275,7 @@ ealgEndo2 = BaseAlg {..} where
 
 -- (3, 203)
 exampleEndo2 :: (Int, Int)
-exampleEndo2 = fst ((unC (foldEndo algEndo2 ealgEndo2 genEndo2 prog2)) (const Nothing))
+exampleEndo2 = fst ((unC (handle algEndo2 ealgEndo2 genEndo2 prog2)) (const Nothing))
 
 -----------------------------------------------------------------------------------------------------------
 -- * Example Concurrency
@@ -398,11 +398,11 @@ ealgEndo3 = BaseAlg {..} where
 
 -- hello goodbye world cruel world
 exampleEndo3 :: IO ()
-exampleEndo3 = retraction (foldEndo algEndo3 ealgEndo3 genEndo3 prog3)
+exampleEndo3 = retraction (handle algEndo3 ealgEndo3 genEndo3 prog3)
 
 -- aAbBcC1-2-3-
 exampleEndo4 :: IO ()
-exampleEndo4 = retraction (foldEndo algEndo3 ealgEndo3 genEndo4 prog4)
+exampleEndo4 = retraction (handle algEndo3 ealgEndo3 genEndo4 prog4)
 
 
 -----------------------------------------------------------------------------------------------------------
@@ -440,7 +440,7 @@ select (x:xs)  =  return (x, xs)  <|>  do  (y, ys) <- select xs
 
 -- |list p| lists all the solutions in |p|.
 list :: Prog Choice Once a -> [a]
-list = foldEndo algEndo1 ealgEndo1 genEndo1 where
+list = handle algEndo1 ealgEndo1 genEndo1 where
   algEndo1 :: EndoAlg Choice Once []
   algEndo1 = EndoAlg {..} where
       callE :: Choice [a] -> [a]
@@ -479,7 +479,7 @@ deeper n = return n <|> deeper (n-1)
 newtype DepthCarrier a = DepthCarrier { unDepthC :: Int -> [a] } deriving Functor
 
 dbsList :: Prog Choice Depth a -> [a]
-dbsList = foldEndo endoAlg baseAlg gen where
+dbsList = handle endoAlg baseAlg gen where
   endoAlg :: EndoAlg Choice Depth DepthCarrier
   endoAlg = EndoAlg {..} where
     callE :: Choice (DepthCarrier a) -> DepthCarrier a
@@ -586,7 +586,7 @@ bfsSC :: SCarrier a -> Levels a
 bfsSC (SCarrier _ _ z) = z
 
 list' :: Prog Choice Strategy a -> [a]
-list' = foldEndo ealg balg (\x -> [x]) where
+list' = handle ealg balg (\x -> [x]) where
   ealg :: EndoAlg Choice Strategy SCarrier
   ealg = EndoAlg {..} where
     callE :: Choice (SCarrier a) -> SCarrier a
