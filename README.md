@@ -31,11 +31,16 @@ We propose to evaluate the artifact as follows.
 ### Haskell implementation
 
 The Haskell implementation contains the general datatype `Prog` with its instances, together with the `fold` function for indexed algebras
-and that for functiorial algebras (paper Figure 1).
+and that for functorial algebras (paper Figure 1).
+
+Start the Haskell code using the following command:
+```
+ghci Examples.hs
+```
 
 ###### Nondeterminism with `Once` (paper Example 2, 4)
 
-We test nondeterminism on the example program
+We test the following nondeterminism example program
 ```
 prog1 = once(or(1,5)) >>= λx. or(x,x+1)
 ```
@@ -49,7 +54,7 @@ Examples> exampleEndo1 -- functorial algebra
 
 ###### State with Local Variables (paper Example 6)
 
-We test the local variable example program
+We test the following local variable example program
 ```
 prog2 = put "x" 1 ;
         put "y" 1 ;
@@ -67,13 +72,13 @@ Both implementations with (1) indexed algebras (`Hybrid`) and (2) functorial alg
 ```
 Examples> exampleHybrid2 -- indexed algebra
 (3,203)
-Examples> exampleEndo2 -- functiorial algebra
+Examples> exampleEndo2 -- functorial algebra
 (3,203)
 ```
 
 ###### Parallel Composition of Processes (Concurrency)
 
-We test the concurrency example programs
+We test the following concurrency example programs
 ```
 prog3 = spawn (say "hello " >> say "world ")
         (say "goodbye " >> say "cruel " >> say "world ")
@@ -87,12 +92,12 @@ Both implementations with (1) indexed algebras (`Hybrid`) and (2) functorial alg
 ```
 Examples> exampleHybrid3 -- indexed algebra
 hello goodbye world cruel world
-Examples> exampleEndo3 -- functiorial algebra
+Examples> exampleEndo3 -- functorial algebra
 hello goodbye world cruel world
 
 Examples> exampleHybrid4 -- indexed algebra
 aAbBcC1-2-3-
-Examples> exampleEndo4 -- functiorial algebra
+Examples> exampleEndo4 -- functorial algebra
 aAbBcC1-2-3-
 ```
 
@@ -152,3 +157,71 @@ Examples> list' prog8
 ```
 
 ### OCaml implementation
+
+The Ocaml implementation contains the general modules for functors and monads.
+The `Prog` module is the equivalent of the paper's `Prog` datatype, and the `Alg`
+module implements the `fold` function for functorial algebras (equivalent to paper Figure 1).
+
+Start the Ocaml code using the following commands:
+```
+ocaml
+# #use "examples.ml";;
+```
+
+###### Concurrency
+
+We test the following concurrency example program
+```
+let prog : unit -> unit prog
+         = fun () -> spawn (say "hello " >> say "world ")
+                           (say "goodbye " >> say "cruel " >> say "world ")
+```
+
+Interpreting this program gives us the following:
+```
+# Concurrent.example (Concurrent.prog ());;
+hello
+goodbye
+world
+cruel
+world
+- : (unit, string) result = Error "main process killed"
+```
+
+
+###### Nondeterminism with Once
+
+We test the following nondeterminism example program
+```
+let prog = let x1 = once (cor (return 1) (return 5))
+    in let x2 = fun x -> cor (return x) (return (x + 1))
+    in x1 >>= x2
+```
+
+Interpreting this program gives us the following:
+```
+# NonDet.example;;
+- : int list = [1; 2]
+```
+
+###### Local State
+
+We test the following local state example program
+```
+let prog = put "x" 1 >>
+       put "y" 1 >>
+       local "x" 100 (incr "x" 100 >>
+               ((get "x") >>=
+                (fun v -> incr "y" v))) >>
+       incr "x" 2 >>
+       incr "y" 2 >>
+       (get "x") >>= (fun vx ->
+          ((get "y")>>= (fun vy ->
+            return (vx, vy))))
+```
+
+Interpreting this program gives us the following:
+```
+# LocalState.example;;
+- : int * int = (3, 203)
+```
