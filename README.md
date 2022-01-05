@@ -7,6 +7,7 @@ and build using the following commands.
 (If you use the prebuilt image, you can skip this step.)
 ```
 git clone https://github.com/birthevdb/Structured-Handling-of-Scoped-Effects.git
+cd Structured-Handling-of-Scoped-Effects/
 docker build -t scoped .
 ```
 
